@@ -184,6 +184,34 @@ async function handleSendMessage() {
     await handleUserMessage(message);
 }
 
+// Format message text - convert markdown to HTML
+function formatMessageText(text) {
+    if (!text) return '';
+    
+    // Escape HTML first to prevent XSS
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    
+    // Convert markdown bold **text** to <strong>text</strong> first
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Then convert remaining single *text* to <em>text</em> (italic)
+    html = html.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
+    
+    // Convert line breaks to <br>
+    html = html.replace(/\n/g, '<br>');
+    
+    // Convert email links [text](mailto:email) to <a href="mailto:email">text</a>
+    html = html.replace(/\[([^\]]+)\]\(mailto:([^)]+)\)/g, '<a href="mailto:$2">$1</a>');
+    
+    // Convert URLs to links
+    html = html.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    
+    return html;
+}
+
 // Send message to chat
 function sendMessage(text, type) {
     if (!chatMessages) {
@@ -197,8 +225,9 @@ function sendMessage(text, type) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
     
-    const p = document.createElement('p');
-    p.textContent = text;
+    // Render text with markdown/HTML support
+    const p = document.createElement('div');
+    p.innerHTML = formatMessageText(text);
     contentDiv.appendChild(p);
     
     const metaDiv = document.createElement('div');
@@ -468,7 +497,15 @@ async function formatResponseWithOpenAI(rawResponse, userQuestion) {
 The information system provided this response:
 "${rawResponse}"
 
-Please reformat this response to be more conversational, user-friendly, and engaging. Keep all the important information but make it sound natural and friendly, as if you're having a conversation with the customer. Use a warm, welcoming tone. Return only the formatted response, nothing else.`;
+Please reformat this response to be more conversational, user-friendly, and engaging. Keep all the important information but make it sound natural and friendly, as if you're having a conversation with the customer. Use a warm, welcoming tone. 
+
+IMPORTANT: Format the response using markdown:
+- Use **bold** for important labels (like "Location:", "Hours:", etc.)
+- Use line breaks for readability
+- Keep lists clear and easy to read
+- Make it conversational but informative
+
+Return only the formatted response, nothing else.`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',

@@ -199,10 +199,35 @@ body {
     border-bottom-right-radius: 4px;
 }
 
-.message-content p {
+.message-content p,
+.message-content div {
     font-size: 14px;
     line-height: 1.5;
     color: inherit;
+}
+
+.message-content strong {
+    font-weight: 600;
+    color: inherit;
+}
+
+.message-content em {
+    font-style: italic;
+}
+
+.message-content a {
+    color: inherit;
+    text-decoration: underline;
+    opacity: 0.9;
+}
+
+.message-content a:hover {
+    opacity: 1;
+}
+
+.user-message .message-content a {
+    color: white;
+    text-decoration: underline;
 }
 
 .message-meta {

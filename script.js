@@ -492,20 +492,21 @@ async function formatResponseWithOpenAI(rawResponse, userQuestion) {
     }
 
     try {
-        const prompt = `You are a friendly assistant for ${CONFIG.restaurantName}, a bakery in NYC. The user asked: "${userQuestion}". 
+        const prompt = `You are a friendly assistant for ${CONFIG.restaurantName}, a bakery in NYC. A customer asked: "${userQuestion}".
 
 The information system provided this response:
 "${rawResponse}"
 
-Please reformat this response to be more conversational, user-friendly, and engaging. Keep all the important information but make it sound natural and friendly, as if you're having a conversation with the customer. Use a warm, welcoming tone. 
+Reformat this response to be conversational, user-friendly, and engaging. Keep all important information but make it sound natural and friendly, as if you're directly talking to the customer.
 
-IMPORTANT: Format the response using markdown:
-- Use **bold** for important labels (like "Location:", "Hours:", etc.)
+CRITICAL RULES:
+- Start directly with the answer - NO meta-commentary like "Sure!", "Here's...", "Let me...", etc.
+- NO headings, separators, or introductory phrases
+- Use **bold** for labels (like "Location:", "Hours:", etc.)
 - Use line breaks for readability
 - Keep lists clear and easy to read
-- Make it conversational but informative
-
-Return only the formatted response, nothing else.`;
+- Be conversational but informative
+- Return ONLY the reformatted response text, nothing else - no explanations, no meta-text`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -518,7 +519,7 @@ Return only the formatted response, nothing else.`;
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a friendly assistant for ${CONFIG.restaurantName}. Reformulate responses to be conversational, user-friendly, and engaging while keeping all important information.`
+                        content: `You are a friendly assistant for ${CONFIG.restaurantName}. Reformulate responses to be conversational, user-friendly, and engaging while keeping all important information. NEVER add meta-commentary, headings, or introductory phrases. Start directly with the answer.`
                     },
                     {
                         role: 'user',
@@ -532,7 +533,16 @@ Return only the formatted response, nothing else.`;
 
         if (response.ok) {
             const data = await response.json();
-            const formattedResponse = data.choices[0].message.content.trim();
+            let formattedResponse = data.choices[0].message.content.trim();
+            
+            // Clean up any unwanted meta-text that OpenAI might add
+            // Remove lines like "Sure! Here's...", "Let me...", etc.
+            formattedResponse = formattedResponse.replace(/^(Sure!|Here's|Let me|I'll|I can|Here is).*?:\s*/i, '');
+            formattedResponse = formattedResponse.replace(/^---\s*/g, ''); // Remove separator lines
+            formattedResponse = formattedResponse.replace(/^Hey there!.*?\n/gi, ''); // Remove "Hey there!" lines
+            formattedResponse = formattedResponse.replace(/^✨\s*/g, ''); // Remove emoji prefixes
+            formattedResponse = formattedResponse.trim();
+            
             return formattedResponse;
         } else {
             // If OpenAI fails, return raw response

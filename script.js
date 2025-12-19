@@ -368,8 +368,17 @@ async function handleOptionClick(option) {
         await generateAndShowSampleQuestions(option, botResponse);
 
     } catch (error) {
-        console.error('Error:', error);
-        sendMessage('I apologize, but I\'m having trouble connecting right now. Please try again in a moment.', 'bot');
+        console.error('Error in handleOptionClick:', error);
+        let errorMessage = 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.';
+        
+        // More specific error messages
+        if (error.message && error.message.includes('n8n webhook error')) {
+            errorMessage = 'Unable to connect to our chat service. Please check your internet connection and try again.';
+        } else if (error.message && error.message.includes('Failed to fetch')) {
+            errorMessage = 'Network error. Please check your internet connection and try again.';
+        }
+        
+        sendMessage(errorMessage, 'bot');
         // Don't show default options again (already shown once at start)
     } finally {
         state.isLoading = false;
@@ -455,12 +464,14 @@ async function handleUserMessage(userMessage) {
         await generateAndShowSampleQuestions(userMessage, botResponse);
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error in handleUserMessage:', error);
         let errorMessage = 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.';
         
-        // Show more specific error message if it's a webhook error
+        // More specific error messages
         if (error.message && error.message.includes('n8n webhook error')) {
-            errorMessage = `Unable to connect to the chat service. Error: ${error.message}`;
+            errorMessage = 'Unable to connect to our chat service. Please check your internet connection and try again.';
+        } else if (error.message && error.message.includes('Failed to fetch')) {
+            errorMessage = 'Network error. Please check your internet connection and try again.';
         }
         
         sendMessage(errorMessage, 'bot');
@@ -486,8 +497,9 @@ function showDefaultOptionsOnce() {
 
 // Format n8n response using OpenAI to make it user-friendly
 async function formatResponseWithOpenAI(rawResponse, userQuestion) {
-    // If no API key, return raw response
-    if (!CONFIG.openaiApiKey) {
+    // If no API key, return raw response (formatted with markdown)
+    if (!CONFIG.openaiApiKey || CONFIG.openaiApiKey === 'sk-your-openai-api-key-here') {
+        console.warn('OpenAI API key not set, using raw response');
         return rawResponse;
     }
 

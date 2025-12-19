@@ -264,27 +264,40 @@ async function handleOptionClick(option) {
             try {
                 const prompt = `You are a helpful assistant for ${CONFIG.restaurantName}, a bakery in NYC. The user clicked on "${option}". Generate exactly 2 relevant follow-up questions that a customer might ask about this topic. Return only the 2 questions, one per line, without numbering or bullets.`;
 
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                // Use proxy if configured, otherwise try direct (may fail due to CORS)
+                const proxyUrl = CONFIG.openaiProxyUrl || null;
+                const apiUrl = proxyUrl || 'https://api.openai.com/v1/chat/completions';
+                
+                const requestBody = {
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `You are a helpful assistant for ${CONFIG.restaurantName}. Generate exactly 2 relevant follow-up questions based on the user's selected option. Return only the questions, one per line, without numbering.`
+                        },
+                        {
+                            role: 'user',
+                            content: prompt
+                        }
+                    ],
+                    max_tokens: 100,
+                    temperature: 0.7
+                };
+
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+
+                if (proxyUrl) {
+                    requestBody.messages = requestBody.messages;
+                } else {
+                    headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
+                }
+
+                const response = await fetch(apiUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${CONFIG.openaiApiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: 'gpt-4o-mini',
-                        messages: [
-                            {
-                                role: 'system',
-                                content: `You are a helpful assistant for ${CONFIG.restaurantName}. Generate exactly 2 relevant follow-up questions based on the user's selected option. Return only the questions, one per line, without numbering.`
-                            },
-                            {
-                                role: 'user',
-                                content: prompt
-                            }
-                        ],
-                        max_tokens: 100,
-                        temperature: 0.7
-                    })
+                    headers: headers,
+                    body: JSON.stringify(requestBody)
                 });
 
                 if (response.ok) {
@@ -520,27 +533,41 @@ CRITICAL RULES:
 - Be conversational but informative
 - Return ONLY the reformatted response text, nothing else - no explanations, no meta-text`;
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Use proxy if configured, otherwise try direct (may fail due to CORS)
+        const proxyUrl = CONFIG.openaiProxyUrl || null;
+        const apiUrl = proxyUrl || 'https://api.openai.com/v1/chat/completions';
+        
+        const requestBody = {
+            model: 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are a friendly assistant for ${CONFIG.restaurantName}. Reformulate responses to be conversational, user-friendly, and engaging while keeping all important information. NEVER add meta-commentary, headings, or introductory phrases. Start directly with the answer.`
+                },
+                {
+                    role: 'user',
+                    content: prompt
+                }
+            ],
+            max_tokens: 500,
+            temperature: 0.7
+        };
+
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // If using proxy, send messages in body; if direct, use Authorization header
+        if (proxyUrl) {
+            requestBody.messages = requestBody.messages;
+        } else {
+            headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
+        }
+
+        const response = await fetch(apiUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${CONFIG.openaiApiKey}`
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are a friendly assistant for ${CONFIG.restaurantName}. Reformulate responses to be conversational, user-friendly, and engaging while keeping all important information. NEVER add meta-commentary, headings, or introductory phrases. Start directly with the answer.`
-                    },
-                    {
-                        role: 'user',
-                        content: prompt
-                    }
-                ],
-                max_tokens: 500,
-                temperature: 0.7
-            })
+            headers: headers,
+            body: JSON.stringify(proxyUrl ? requestBody : requestBody)
         });
 
         if (response.ok) {
@@ -578,27 +605,41 @@ async function generateAndShowSampleQuestions(userQuestion, botResponse) {
     try {
         const prompt = `You are a helpful assistant for ${CONFIG.restaurantName}, a bakery in NYC. Based on the user's question "${userQuestion}" and your response "${botResponse}", generate exactly 2 relevant follow-up questions that a customer might ask. Return only the 2 questions, one per line, without numbering or bullets.`;
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Use proxy if configured, otherwise try direct (may fail due to CORS)
+        const proxyUrl = CONFIG.openaiProxyUrl || null;
+        const apiUrl = proxyUrl || 'https://api.openai.com/v1/chat/completions';
+        
+        const requestBody = {
+            model: 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are a helpful assistant for ${CONFIG.restaurantName}. Generate exactly 2 relevant follow-up questions based on the conversation. Return only the questions, one per line, without numbering.`
+                },
+                {
+                    role: 'user',
+                    content: prompt
+                }
+            ],
+            max_tokens: 100,
+            temperature: 0.7
+        };
+
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // If using proxy, send messages in body; if direct, use Authorization header
+        if (proxyUrl) {
+            requestBody.messages = requestBody.messages;
+        } else {
+            headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
+        }
+
+        const response = await fetch(apiUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${CONFIG.openaiApiKey}`
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are a helpful assistant for ${CONFIG.restaurantName}. Generate exactly 2 relevant follow-up questions based on the conversation. Return only the questions, one per line, without numbering.`
-                    },
-                    {
-                        role: 'user',
-                        content: prompt
-                    }
-                ],
-                max_tokens: 100,
-                temperature: 0.7
-            })
+            headers: headers,
+            body: JSON.stringify(proxyUrl ? requestBody : requestBody)
         });
 
         if (!response.ok) {

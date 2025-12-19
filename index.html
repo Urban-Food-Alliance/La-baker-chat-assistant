@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LA Baker - Chat Assistant</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="chat-container" id="chatContainer">
+        <!-- Chat Header -->
+        <div class="chat-header">
+            <button class="back-btn" id="backBtn" aria-label="Go back">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div class="header-info">
+                <div class="header-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="#9333EA"/>
+                        <path d="M12 8V12L15 15" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="header-text">
+                    <h2>LA Baker Assistant</h2>
+                    <p>The team can also help</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="menu-btn" id="menuBtn" aria-label="Menu">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="10" cy="5" r="1.5" fill="currentColor"/>
+                        <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
+                        <circle cx="10" cy="15" r="1.5" fill="currentColor"/>
+                    </svg>
+                </button>
+                <button class="close-btn" id="closeBtn" aria-label="Close chat">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Chat Messages Area -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot-message">
+                <div class="message-content">
+                    <p>Hi! How can we help? Choose an option below</p>
+                </div>
+                <div class="message-meta">
+                    <span>LA Baker Assistant • AI Agent • Just now</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Options -->
+        <div class="quick-options" id="quickOptions">
+            <button class="option-btn" data-option="Menu & Products">
+                Menu & Products
+            </button>
+            <button class="option-btn" data-option="Hours & Location">
+                Hours & Location
+            </button>
+            <button class="option-btn" data-option="Catering Services">
+                Catering Services
+            </button>
+            <button class="option-btn" data-option="Contact Information">
+                Contact Information
+            </button>
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-input-area">
+            <div class="input-container">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    placeholder="Type your message..." 
+                    autocomplete="off"
+                >
+                <button class="send-btn" id="sendBtn" aria-label="Send message">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 2L9 11M18 2L12 18L9 11M18 2L2 8L9 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div class="modal-overlay" id="feedbackModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>We'd love your feedback!</h3>
+                <button class="modal-close" id="modalCloseBtn" aria-label="Close modal">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>How was your experience with our chat assistant?</p>
+                <div class="rating-container">
+                    <button class="rating-btn" data-rating="1">😞</button>
+                    <button class="rating-btn" data-rating="2">😐</button>
+                    <button class="rating-btn" data-rating="3">🙂</button>
+                    <button class="rating-btn" data-rating="4">😊</button>
+                    <button class="rating-btn" data-rating="5">😍</button>
+                </div>
+                <textarea 
+                    id="feedbackText" 
+                    placeholder="Tell us more about your experience (optional)..."
+                    rows="4"
+                ></textarea>
+                <button class="submit-feedback-btn" id="submitFeedbackBtn">Submit Feedback</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="loading-indicator" id="loadingIndicator">
+        <div class="loading-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+

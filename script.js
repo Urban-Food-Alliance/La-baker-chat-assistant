@@ -336,9 +336,34 @@ async function handleOptionClick(option) {
         console.log('n8n response status:', n8nResponse.status);
 
         if (!n8nResponse.ok) {
-            const errorText = await n8nResponse.text();
+            let errorText = '';
+            try {
+                errorText = await n8nResponse.text();
+                // Try to parse as JSON for better error message
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    if (errorJson.message) {
+                        errorText = errorJson.message;
+                    }
+                } catch (e) {
+                    // Keep as text if not JSON
+                }
+            } catch (e) {
+                errorText = 'Unknown error';
+            }
+            
             console.error('n8n webhook error:', n8nResponse.status, errorText);
-            throw new Error(`n8n webhook error: ${n8nResponse.status} - ${errorText}`);
+            
+            // Provide user-friendly error messages based on status code
+            if (n8nResponse.status === 500) {
+                throw new Error(`Our chat service is experiencing technical difficulties. Please try again in a moment. (Error: ${errorText})`);
+            } else if (n8nResponse.status === 404) {
+                throw new Error(`Chat service endpoint not found. Please contact support.`);
+            } else if (n8nResponse.status === 503) {
+                throw new Error(`Chat service is temporarily unavailable. Please try again later.`);
+            } else {
+                throw new Error(`Unable to connect to chat service (${n8nResponse.status}). Please try again.`);
+            }
         }
 
         let n8nData;
@@ -384,11 +409,14 @@ async function handleOptionClick(option) {
         console.error('Error in handleOptionClick:', error);
         let errorMessage = 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.';
         
-        // More specific error messages
-        if (error.message && error.message.includes('n8n webhook error')) {
-            errorMessage = 'Unable to connect to our chat service. Please check your internet connection and try again.';
+        // Use the error message if it's user-friendly, otherwise provide generic message
+        if (error.message && !error.message.includes('n8n webhook error') && !error.message.includes('Failed to fetch')) {
+            // Use the specific error message (already user-friendly)
+            errorMessage = error.message;
         } else if (error.message && error.message.includes('Failed to fetch')) {
             errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (error.message && error.message.includes('technical difficulties')) {
+            errorMessage = error.message; // Use the user-friendly message we created
         }
         
         sendMessage(errorMessage, 'bot');
@@ -480,11 +508,14 @@ async function handleUserMessage(userMessage) {
         console.error('Error in handleUserMessage:', error);
         let errorMessage = 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.';
         
-        // More specific error messages
-        if (error.message && error.message.includes('n8n webhook error')) {
-            errorMessage = 'Unable to connect to our chat service. Please check your internet connection and try again.';
+        // Use the error message if it's user-friendly, otherwise provide generic message
+        if (error.message && !error.message.includes('n8n webhook error') && !error.message.includes('Failed to fetch')) {
+            // Use the specific error message (already user-friendly)
+            errorMessage = error.message;
         } else if (error.message && error.message.includes('Failed to fetch')) {
             errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (error.message && error.message.includes('technical difficulties')) {
+            errorMessage = error.message; // Use the user-friendly message we created
         }
         
         sendMessage(errorMessage, 'bot');

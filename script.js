@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (CONFIG) {
         console.log('n8n URL:', CONFIG.n8nWebhookUrl);
         console.log('OpenAI Key:', CONFIG.openaiApiKey ? 'Set' : 'Not set');
+        console.log('OpenAI Proxy URL:', CONFIG.openaiProxyUrl || 'Not set');
     }
     
     if (!initializeDOMElements()) {
@@ -240,7 +241,12 @@ function sendMessage(text, type) {
     messageDiv.appendChild(contentDiv);
     messageDiv.appendChild(metaDiv);
     
-    chatMessages.appendChild(messageDiv);
+    // If loading indicator is visible, insert message before it, otherwise append
+    if (loadingIndicator && loadingIndicator.classList.contains('active')) {
+        chatMessages.insertBefore(messageDiv, loadingIndicator);
+    } else {
+        chatMessages.appendChild(messageDiv);
+    }
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
@@ -265,8 +271,9 @@ async function handleOptionClick(option) {
                 const prompt = `You are a helpful assistant for ${CONFIG.restaurantName}, a bakery in NYC. The user clicked on "${option}". Generate exactly 2 relevant follow-up questions that a customer might ask about this topic. Return only the 2 questions, one per line, without numbering or bullets.`;
 
                 // Use proxy if configured, otherwise try direct (may fail due to CORS)
-                const proxyUrl = CONFIG.openaiProxyUrl || null;
+                const proxyUrl = (CONFIG.openaiProxyUrl && CONFIG.openaiProxyUrl.trim() !== '') ? CONFIG.openaiProxyUrl : null;
                 const apiUrl = proxyUrl || 'https://api.openai.com/v1/chat/completions';
+                console.log('Proxy URL check:', proxyUrl);
                 
                 const requestBody = {
                     model: 'gpt-4o-mini',
@@ -288,9 +295,9 @@ async function handleOptionClick(option) {
                     'Content-Type': 'application/json'
                 };
 
-                if (proxyUrl) {
-                    requestBody.messages = requestBody.messages;
-                } else {
+                // If using proxy, don't add Authorization header (proxy handles it)
+                // If direct, add Authorization header
+                if (!proxyUrl) {
                     headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
                 }
 
@@ -542,7 +549,7 @@ function showDefaultOptionsOnce() {
 // Format n8n response using OpenAI to make it user-friendly
 async function formatResponseWithOpenAI(rawResponse, userQuestion) {
     // If no API key, return raw response (formatted with markdown)
-    if (!CONFIG.openaiApiKey || CONFIG.openaiApiKey === 'sk-your-openai-api-key-here') {
+    if (!CONFIG.openaiApiKey || CONFIG.openaiApiKey === 'sk-your-openai-api-key-here' || CONFIG.openaiApiKey.trim() === '') {
         console.warn('OpenAI API key not set, using raw response');
         return rawResponse;
     }
@@ -588,18 +595,22 @@ CRITICAL RULES:
             'Content-Type': 'application/json'
         };
 
-        // If using proxy, send messages in body; if direct, use Authorization header
-        if (proxyUrl) {
-            requestBody.messages = requestBody.messages;
-        } else {
+        // If using proxy, don't add Authorization header (proxy handles it)
+        // If direct, add Authorization header
+        if (!proxyUrl) {
             headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
         }
 
+        console.log('Calling OpenAI API for formatting:', apiUrl);
+        console.log('Using proxy:', !!proxyUrl);
+        
         const response = await fetch(apiUrl, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify(proxyUrl ? requestBody : requestBody)
+            body: JSON.stringify(requestBody)
         });
+
+        console.log('OpenAI formatting response status:', response.status);
 
         if (response.ok) {
             const data = await response.json();
@@ -616,11 +627,21 @@ CRITICAL RULES:
             return formattedResponse;
         } else {
             // If OpenAI fails, return raw response
-            console.error('OpenAI formatting failed, using raw response');
+            const errorText = await response.text();
+            console.error('OpenAI formatting failed, using raw response. Status:', response.status);
+            console.error('Error response:', errorText);
+            if (response.status === 401) {
+                console.error('⚠️ OpenAI API key is invalid or expired. Please check your API key in config.js');
+            } else if (response.status === 0 || errorText.includes('CORS')) {
+                console.error('⚠️ CORS error: Cannot call OpenAI directly from browser. Consider using openaiProxyUrl in config.js');
+            }
             return rawResponse;
         }
     } catch (error) {
         console.error('Error formatting response:', error);
+        if (error.message && error.message.includes('CORS')) {
+            console.error('⚠️ CORS error: Cannot call OpenAI directly from browser. Consider using openaiProxyUrl in config.js');
+        }
         // If error, return raw response
         return rawResponse;
     }
@@ -629,7 +650,8 @@ CRITICAL RULES:
 // Generate sample questions using OpenAI based on conversation
 async function generateAndShowSampleQuestions(userQuestion, botResponse) {
     // If no API key is set, don't show anything (default options already shown once)
-    if (!CONFIG.openaiApiKey) {
+    if (!CONFIG.openaiApiKey || CONFIG.openaiApiKey === 'sk-your-openai-api-key-here' || CONFIG.openaiApiKey.trim() === '') {
+        console.warn('OpenAI API key not set. Skipping sample question generation.');
         return;
     }
 
@@ -637,8 +659,9 @@ async function generateAndShowSampleQuestions(userQuestion, botResponse) {
         const prompt = `You are a helpful assistant for ${CONFIG.restaurantName}, a bakery in NYC. Based on the user's question "${userQuestion}" and your response "${botResponse}", generate exactly 2 relevant follow-up questions that a customer might ask. Return only the 2 questions, one per line, without numbering or bullets.`;
 
         // Use proxy if configured, otherwise try direct (may fail due to CORS)
-        const proxyUrl = CONFIG.openaiProxyUrl || null;
+        const proxyUrl = (CONFIG.openaiProxyUrl && CONFIG.openaiProxyUrl.trim() !== '') ? CONFIG.openaiProxyUrl : null;
         const apiUrl = proxyUrl || 'https://api.openai.com/v1/chat/completions';
+        console.log('Sample questions - Proxy URL check:', proxyUrl);
         
         const requestBody = {
             model: 'gpt-4o-mini',
@@ -660,20 +683,32 @@ async function generateAndShowSampleQuestions(userQuestion, botResponse) {
             'Content-Type': 'application/json'
         };
 
-        // If using proxy, send messages in body; if direct, use Authorization header
-        if (proxyUrl) {
-            requestBody.messages = requestBody.messages;
-        } else {
+        // If using proxy, don't add Authorization header (proxy handles it)
+        // If direct, add Authorization header
+        if (!proxyUrl) {
             headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
         }
 
+        console.log('Calling OpenAI API for sample questions:', apiUrl);
+        console.log('Using proxy:', !!proxyUrl);
+        
         const response = await fetch(apiUrl, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify(proxyUrl ? requestBody : requestBody)
+            body: JSON.stringify(requestBody)
         });
 
+        console.log('OpenAI sample questions response status:', response.status);
+
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('OpenAI sample questions failed. Status:', response.status);
+            console.error('Error response:', errorText);
+            if (response.status === 401) {
+                console.error('⚠️ OpenAI API key is invalid or expired. Please check your API key in config.js');
+            } else if (response.status === 0 || errorText.includes('CORS')) {
+                console.error('⚠️ CORS error: Cannot call OpenAI directly from browser. Consider using openaiProxyUrl in config.js');
+            }
             throw new Error('OpenAI API error');
         }
 
@@ -691,6 +726,9 @@ async function generateAndShowSampleQuestions(userQuestion, botResponse) {
 
     } catch (error) {
         console.error('Error generating questions:', error);
+        if (error.message && error.message.includes('CORS')) {
+            console.error('⚠️ CORS error: Cannot call OpenAI directly from browser. Consider using openaiProxyUrl in config.js');
+        }
         // Don't show default options on error (already shown once)
     }
 }
@@ -750,15 +788,34 @@ function showDefaultOptions() {
 
 // Show/hide loading indicator
 function showLoading(show) {
-    if (!loadingIndicator || !chatMessages) return;
+    console.log('showLoading called:', show);
+    if (!loadingIndicator) {
+        console.error('loadingIndicator not found');
+        return;
+    }
+    if (!chatMessages) {
+        console.error('chatMessages not found');
+        return;
+    }
     
     if (show) {
+        console.log('Showing loading indicator');
+        // Ensure loading indicator is at the end of chat messages
+        // Remove it from current position and append to end
+        if (loadingIndicator.parentNode === chatMessages) {
+            chatMessages.removeChild(loadingIndicator);
+        }
+        chatMessages.appendChild(loadingIndicator);
+        
         loadingIndicator.classList.add('active');
         // Scroll to show loading indicator
         setTimeout(() => {
-            if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 100);
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }, 50);
     } else {
+        console.log('Hiding loading indicator');
         loadingIndicator.classList.remove('active');
     }
 }

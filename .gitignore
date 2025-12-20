@@ -26,3 +26,5 @@ Thumbs.db
 dist/
 build/
 
+# Local proxy server (contains API key)
+local-proxy-server.js

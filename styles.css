@@ -265,12 +265,14 @@ body {
     transition: all 0.2s;
     font-family: inherit;
     font-weight: 500;
-    max-width: 100%;
+    max-width: calc(50% - 4px);
+    min-width: 120px;
     white-space: normal;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    text-overflow: ellipsis;
     line-height: 1.4;
+    text-align: center;
+    flex: 1 1 auto;
 }
 
 .option-btn:hover {

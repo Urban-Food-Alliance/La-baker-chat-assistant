@@ -750,11 +750,14 @@ function showDefaultOptions() {
 
 // Show/hide loading indicator
 function showLoading(show) {
-    if (!loadingIndicator) return;
+    if (!loadingIndicator || !chatMessages) return;
     
     if (show) {
         loadingIndicator.classList.add('active');
-        if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Scroll to show loading indicator
+        setTimeout(() => {
+            if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, 100);
     } else {
         loadingIndicator.classList.remove('active');
     }

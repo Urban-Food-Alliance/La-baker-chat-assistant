@@ -3,9 +3,8 @@
 if (typeof CONFIG === 'undefined') {
     console.error('CONFIG is not defined. Please create config.js from config.example.js');
     // Fallback configuration (without API key) - assign to window to avoid redeclaration
-    window.CONFIG = {
+      window.CONFIG = {
         n8nWebhookUrl: 'https://n8n.srv1155798.hstgr.cloud/webhook/8f0737aa-cde7-4089-bd96-7690120f89f7/chat',
-        openaiApiKey: '',
         restaurantName: 'LA Baker',
         restaurantUrl: 'https://www.labaker.com/'
     };
@@ -31,8 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('CONFIG:', CONFIG ? 'Loaded' : 'Missing');
     if (CONFIG) {
         console.log('n8n URL:', CONFIG.n8nWebhookUrl);
-        console.log('OpenAI Key:', CONFIG.openaiApiKey ? 'Set' : 'Not set');
-        console.log('OpenAI Proxy URL:', CONFIG.openaiProxyUrl || 'Not set');
     }
     
     if (!initializeDOMElements()) {
@@ -104,12 +101,11 @@ function setupEventListeners() {
         optionButtons.forEach((btn, index) => {
             const option = btn.getAttribute('data-option');
             console.log(`Button ${index}: ${option}`);
-            btn.addEventListener('click', async (e) => {
+                btn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 console.log('Option button clicked:', option);
                 if (option) {
                     sendMessage(option, 'user');
-                    // Generate sample questions first, then send to n8n
                     await handleOptionClick(option);
                 }
             });
@@ -250,7 +246,7 @@ function sendMessage(text, type) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// Handle option button click - generate questions first, then send to n8n
+// Handle option button click - send to n8n webhook
 async function handleOptionClick(option) {
     if (!option) {
         console.error('No option provided');
@@ -263,65 +259,7 @@ async function handleOptionClick(option) {
     if (sendBtn) sendBtn.disabled = true;
 
     try {
-        // Step 1: Generate sample questions using OpenAI based on the clicked option
-        let generatedQuestions = [];
-        
-        if (CONFIG.openaiApiKey) {
-            try {
-                const prompt = `You are a helpful assistant for ${CONFIG.restaurantName}, a bakery in NYC. The user clicked on "${option}". Generate exactly 2 relevant follow-up questions that a customer might ask about this topic. Return only the 2 questions, one per line, without numbering or bullets.`;
-
-                // Use proxy if configured, otherwise try direct (may fail due to CORS)
-                const proxyUrl = (CONFIG.openaiProxyUrl && CONFIG.openaiProxyUrl.trim() !== '') ? CONFIG.openaiProxyUrl : null;
-                const apiUrl = proxyUrl || 'https://api.openai.com/v1/chat/completions';
-                console.log('Proxy URL check:', proxyUrl);
-                
-                const requestBody = {
-                    model: 'gpt-4o-mini',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: `You are a helpful assistant for ${CONFIG.restaurantName}. Generate exactly 2 relevant follow-up questions based on the user's selected option. Return only the questions, one per line, without numbering.`
-                        },
-                        {
-                            role: 'user',
-                            content: prompt
-                        }
-                    ],
-                    max_tokens: 100,
-                    temperature: 0.7
-                };
-
-                const headers = {
-                    'Content-Type': 'application/json'
-                };
-
-                // If using proxy, don't add Authorization header (proxy handles it)
-                // If direct, add Authorization header
-                if (!proxyUrl) {
-                    headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
-                }
-
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    const questionsText = data.choices[0].message.content.trim();
-                    generatedQuestions = questionsText.split('\n')
-                        .map(q => q.replace(/^\d+[\.\)]\s*/, '').trim())
-                        .filter(q => q.length > 0)
-                        .slice(0, 2);
-                }
-            } catch (error) {
-                console.error('Error generating questions:', error);
-                // Continue even if question generation fails
-            }
-        }
-
-        // Step 2: Send the clicked option to n8n webhook
+        // Send the clicked option to n8n webhook
         state.conversationHistory.push({
             role: 'user',
             content: option
@@ -381,24 +319,128 @@ async function handleOptionClick(option) {
             const textResponse = await n8nResponse.text();
             n8nData = { response: textResponse };
         }
-        // Handle different response formats from n8n
+        
+        // Log the full response for debugging
+        console.log('n8n response data:', JSON.stringify(n8nData, null, 2));
+        
+        // Handle n8n response format: { answer, followup_question01, followup_question02 }
+        // n8n may return data as an array, so handle that case
+        let responseData = n8nData;
+        if (Array.isArray(n8nData) && n8nData.length > 0) {
+            responseData = n8nData[0]; // Take first item from array
+            console.log('n8n returned array, using first item:', responseData);
+        }
+        
+        // Log all available keys in responseData for debugging
+        console.log('=== PARSING RESPONSE DATA ===');
+        console.log('responseData type:', typeof responseData);
+        console.log('responseData keys:', responseData ? Object.keys(responseData) : 'null/undefined');
+        console.log('Full responseData object:', responseData);
+        
+        // Try to access fields directly and print them
+        console.log('--- DIRECT FIELD ACCESS ---');
+        console.log('responseData.answer:', responseData?.answer);
+        console.log('responseData.Answer:', responseData?.Answer);
+        console.log('responseData.followup_question01:', responseData?.followup_question01);
+        console.log('responseData.followupQuestion01:', responseData?.followupQuestion01);
+        console.log('responseData.followup_question_01:', responseData?.followup_question_01);
+        console.log('responseData.followup_question02:', responseData?.followup_question02);
+        console.log('responseData.followupQuestion02:', responseData?.followupQuestion02);
+        console.log('responseData.followup_question_02:', responseData?.followup_question_02);
+        console.log('responseData.response:', responseData?.response);
+        console.log('responseData.message:', responseData?.message);
+        console.log('responseData.data:', responseData?.data);
+        console.log('---------------------------');
+        
         let rawResponse = '';
-        if (typeof n8nData === 'string') {
-            rawResponse = n8nData;
-        } else if (n8nData.response) {
-            rawResponse = n8nData.response;
-        } else if (n8nData.message) {
-            rawResponse = n8nData.message;
-        } else if (n8nData.text) {
-            rawResponse = n8nData.text;
-        } else if (n8nData.output && n8nData.output.response) {
-            rawResponse = n8nData.output.response;
+        let followupQuestion01 = '';
+        let followupQuestion02 = '';
+        
+        if (typeof responseData === 'string') {
+            rawResponse = responseData;
+        } else if (responseData && responseData.answer) {
+            // New format with answer and followup questions
+            rawResponse = responseData.answer || responseData.Answer || '';
+            followupQuestion01 = responseData.followup_question01 || responseData.followupQuestion01 || responseData.followup_question_01 || '';
+            followupQuestion02 = responseData.followup_question02 || responseData.followupQuestion02 || responseData.followup_question_02 || '';
+            console.log('Found answer and followup questions:', { rawResponse, followupQuestion01, followupQuestion02 });
+        } else if (responseData && (responseData.response || responseData.Response)) {
+            rawResponse = responseData.response || responseData.Response;
+            // Check if followup questions are also in response object
+            followupQuestion01 = responseData.followup_question01 || responseData.followupQuestion01 || responseData.followup_question_01 || '';
+            followupQuestion02 = responseData.followup_question02 || responseData.followupQuestion02 || responseData.followup_question_02 || '';
+        } else if (responseData && (responseData.message || responseData.Message)) {
+            rawResponse = responseData.message || responseData.Message;
+        } else if (responseData && (responseData.text || responseData.Text)) {
+            rawResponse = responseData.text || responseData.Text;
+        } else if (responseData && responseData.data) {
+            // Handle nested data object
+            const data = responseData.data;
+            rawResponse = data.answer || data.Answer || data.response || data.Response || data.message || data.Message || '';
+            followupQuestion01 = data.followup_question01 || data.followupQuestion01 || data.followup_question_01 || '';
+            followupQuestion02 = data.followup_question02 || data.followupQuestion02 || data.followup_question_02 || '';
+        } else if (responseData && responseData.output) {
+            // Handle output field - it may be a string with JSON wrapped in markdown code blocks
+            let outputValue = responseData.output;
+            
+            // If output is a string, try to extract JSON from markdown code blocks
+            if (typeof outputValue === 'string') {
+                console.log('Found output as string, attempting to parse JSON from markdown code block...');
+                
+                // Remove markdown code block markers (```json and ```)
+                outputValue = outputValue.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+                
+                // Try to parse as JSON
+                try {
+                    const parsedOutput = JSON.parse(outputValue);
+                    console.log('Successfully parsed JSON from output:', parsedOutput);
+                    
+                    // Extract values from parsed JSON
+                    rawResponse = parsedOutput.answer || parsedOutput.Answer || '';
+                    followupQuestion01 = parsedOutput.followup_question01 || parsedOutput.followupQuestion01 || parsedOutput.followup_question_01 || '';
+                    followupQuestion02 = parsedOutput.followup_question02 || parsedOutput.followupQuestion02 || parsedOutput.followup_question_02 || '';
+                    
+                    console.log('Extracted from parsed output:', { rawResponse, followupQuestion01, followupQuestion02 });
+                } catch (parseError) {
+                    console.error('Failed to parse JSON from output string:', parseError);
+                    console.log('Raw output value:', outputValue);
+                    // If parsing fails, use the raw string as response
+                    rawResponse = outputValue;
+                }
+            } else if (typeof outputValue === 'object' && outputValue.response) {
+                // If output is an object with response field
+                rawResponse = outputValue.response;
+            } else {
+                // If output is already an object, check for answer/response fields directly
+                rawResponse = outputValue.answer || outputValue.Answer || outputValue.response || outputValue.Response || '';
+                followupQuestion01 = outputValue.followup_question01 || outputValue.followupQuestion01 || outputValue.followup_question_01 || '';
+                followupQuestion02 = outputValue.followup_question02 || outputValue.followupQuestion02 || outputValue.followup_question_02 || '';
+            }
+        } else if (responseData && responseData.output && responseData.output.response) {
+            rawResponse = responseData.output.response;
         } else {
+            // Log the full structure for debugging
+            console.error('Could not parse n8n response.');
+            console.error('Response type:', typeof responseData);
+            console.error('Is array:', Array.isArray(responseData));
+            console.error('Available keys:', responseData ? Object.keys(responseData) : 'no data');
+            console.error('Full response:', responseData);
             rawResponse = 'I apologize, but I couldn\'t process that request.';
         }
 
-        // Step 3: Format the response using OpenAI to make it user-friendly
-        const botResponse = await formatResponseWithOpenAI(rawResponse, option);
+        // Print extracted values for debugging - MAKE THIS VERY VISIBLE
+        console.log('');
+        console.log('╔════════════════════════════════════════════╗');
+        console.log('║   EXTRACTED VALUES FROM N8N RESPONSE      ║');
+        console.log('╠════════════════════════════════════════════╣');
+        console.log('║ answer:', rawResponse || '(EMPTY)'.padEnd(35), '║');
+        console.log('║ followup_question01:', (followupQuestion01 || '(EMPTY)').padEnd(27), '║');
+        console.log('║ followup_question02:', (followupQuestion02 || '(EMPTY)').padEnd(27), '║');
+        console.log('╚════════════════════════════════════════════╝');
+        console.log('');
+
+        // Use the raw response directly from n8n (no OpenAI formatting needed)
+        const botResponse = rawResponse;
 
         // Add bot response to history
         state.conversationHistory.push({
@@ -406,11 +448,22 @@ async function handleOptionClick(option) {
             content: botResponse
         });
 
-        // Step 4: Display bot response
+        // Step 3: Display bot response
         sendMessage(botResponse, 'bot');
 
-        // Step 5: Generate 2 new sample questions based on the conversation
-        await generateAndShowSampleQuestions(option, botResponse);
+        // Step 5: Show followup questions from n8n response
+        if (followupQuestion01 || followupQuestion02) {
+            const followupQuestions = [followupQuestion01, followupQuestion02].filter(q => q && q.trim() !== '');
+            if (followupQuestions.length > 0) {
+                showSampleQuestions(followupQuestions);
+            } else {
+                // If no followup questions, show default options
+                showDefaultOptions();
+            }
+        } else {
+            // If no followup questions in response, show default options
+            showDefaultOptions();
+        }
 
     } catch (error) {
         console.error('Error in handleOptionClick:', error);
@@ -480,24 +533,127 @@ async function handleUserMessage(userMessage) {
             data = { response: textResponse };
         }
         
-        // Handle different response formats from n8n
+        // Log the full response for debugging
+        console.log('n8n response data:', JSON.stringify(data, null, 2));
+        
+        // Handle n8n response format: { answer, followup_question01, followup_question02 }
+        // n8n may return data as an array, so handle that case
+        let responseData = data;
+        if (Array.isArray(data) && data.length > 0) {
+            responseData = data[0]; // Take first item from array
+            console.log('n8n returned array, using first item:', responseData);
+        }
+        
+        // Log all available keys in responseData for debugging
+        console.log('=== PARSING RESPONSE DATA ===');
+        console.log('responseData type:', typeof responseData);
+        console.log('responseData keys:', responseData ? Object.keys(responseData) : 'null/undefined');
+        console.log('Full responseData object:', responseData);
+        
+        // Try to access fields directly and print them
+        console.log('--- DIRECT FIELD ACCESS ---');
+        console.log('responseData.answer:', responseData?.answer);
+        console.log('responseData.Answer:', responseData?.Answer);
+        console.log('responseData.followup_question01:', responseData?.followup_question01);
+        console.log('responseData.followupQuestion01:', responseData?.followupQuestion01);
+        console.log('responseData.followup_question_01:', responseData?.followup_question_01);
+        console.log('responseData.followup_question02:', responseData?.followup_question02);
+        console.log('responseData.followupQuestion02:', responseData?.followupQuestion02);
+        console.log('responseData.followup_question_02:', responseData?.followup_question_02);
+        console.log('responseData.response:', responseData?.response);
+        console.log('responseData.message:', responseData?.message);
+        console.log('responseData.data:', responseData?.data);
+        console.log('---------------------------');
+        
         let rawResponse = '';
-        if (typeof data === 'string') {
-            rawResponse = data;
-        } else if (data.response) {
-            rawResponse = data.response;
-        } else if (data.message) {
-            rawResponse = data.message;
-        } else if (data.text) {
-            rawResponse = data.text;
-        } else if (data.output && data.output.response) {
-            rawResponse = data.output.response;
+        let followupQuestion01 = '';
+        let followupQuestion02 = '';
+        
+        if (typeof responseData === 'string') {
+            rawResponse = responseData;
+        } else if (responseData && responseData.answer) {
+            // New format with answer and followup questions
+            rawResponse = responseData.answer || responseData.Answer || '';
+            followupQuestion01 = responseData.followup_question01 || responseData.followupQuestion01 || responseData.followup_question_01 || '';
+            followupQuestion02 = responseData.followup_question02 || responseData.followupQuestion02 || responseData.followup_question_02 || '';
+            console.log('Found answer and followup questions:', { rawResponse, followupQuestion01, followupQuestion02 });
+        } else if (responseData && (responseData.response || responseData.Response)) {
+            rawResponse = responseData.response || responseData.Response;
+            // Check if followup questions are also in response object
+            followupQuestion01 = responseData.followup_question01 || responseData.followupQuestion01 || responseData.followup_question_01 || '';
+            followupQuestion02 = responseData.followup_question02 || responseData.followupQuestion02 || responseData.followup_question_02 || '';
+        } else if (responseData && (responseData.message || responseData.Message)) {
+            rawResponse = responseData.message || responseData.Message;
+        } else if (responseData && (responseData.text || responseData.Text)) {
+            rawResponse = responseData.text || responseData.Text;
+        } else if (responseData && responseData.data) {
+            // Handle nested data object
+            const nestedData = responseData.data;
+            rawResponse = nestedData.answer || nestedData.Answer || nestedData.response || nestedData.Response || nestedData.message || nestedData.Message || '';
+            followupQuestion01 = nestedData.followup_question01 || nestedData.followupQuestion01 || nestedData.followup_question_01 || '';
+            followupQuestion02 = nestedData.followup_question02 || nestedData.followupQuestion02 || nestedData.followup_question_02 || '';
+        } else if (responseData && responseData.output) {
+            // Handle output field - it may be a string with JSON wrapped in markdown code blocks
+            let outputValue = responseData.output;
+            
+            // If output is a string, try to extract JSON from markdown code blocks
+            if (typeof outputValue === 'string') {
+                console.log('Found output as string, attempting to parse JSON from markdown code block...');
+                
+                // Remove markdown code block markers (```json and ```)
+                outputValue = outputValue.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+                
+                // Try to parse as JSON
+                try {
+                    const parsedOutput = JSON.parse(outputValue);
+                    console.log('Successfully parsed JSON from output:', parsedOutput);
+                    
+                    // Extract values from parsed JSON
+                    rawResponse = parsedOutput.answer || parsedOutput.Answer || '';
+                    followupQuestion01 = parsedOutput.followup_question01 || parsedOutput.followupQuestion01 || parsedOutput.followup_question_01 || '';
+                    followupQuestion02 = parsedOutput.followup_question02 || parsedOutput.followupQuestion02 || parsedOutput.followup_question_02 || '';
+                    
+                    console.log('Extracted from parsed output:', { rawResponse, followupQuestion01, followupQuestion02 });
+                } catch (parseError) {
+                    console.error('Failed to parse JSON from output string:', parseError);
+                    console.log('Raw output value:', outputValue);
+                    // If parsing fails, use the raw string as response
+                    rawResponse = outputValue;
+                }
+            } else if (typeof outputValue === 'object' && outputValue.response) {
+                // If output is an object with response field
+                rawResponse = outputValue.response;
+            } else {
+                // If output is already an object, check for answer/response fields directly
+                rawResponse = outputValue.answer || outputValue.Answer || outputValue.response || outputValue.Response || '';
+                followupQuestion01 = outputValue.followup_question01 || outputValue.followupQuestion01 || outputValue.followup_question_01 || '';
+                followupQuestion02 = outputValue.followup_question02 || outputValue.followupQuestion02 || outputValue.followup_question_02 || '';
+            }
+        } else if (responseData && responseData.output && responseData.output.response) {
+            rawResponse = responseData.output.response;
         } else {
+            // Log the full structure for debugging
+            console.error('Could not parse n8n response.');
+            console.error('Response type:', typeof responseData);
+            console.error('Is array:', Array.isArray(responseData));
+            console.error('Available keys:', responseData ? Object.keys(responseData) : 'no data');
+            console.error('Full response:', responseData);
             rawResponse = 'I apologize, but I couldn\'t process that request.';
         }
 
-        // Format the response using OpenAI to make it user-friendly
-        const botResponse = await formatResponseWithOpenAI(rawResponse, userMessage);
+        // Print extracted values for debugging - MAKE THIS VERY VISIBLE
+        console.log('');
+        console.log('╔════════════════════════════════════════════╗');
+        console.log('║   EXTRACTED VALUES FROM N8N RESPONSE      ║');
+        console.log('╠════════════════════════════════════════════╣');
+        console.log('║ answer:', rawResponse || '(EMPTY)'.padEnd(35), '║');
+        console.log('║ followup_question01:', (followupQuestion01 || '(EMPTY)').padEnd(27), '║');
+        console.log('║ followup_question02:', (followupQuestion02 || '(EMPTY)').padEnd(27), '║');
+        console.log('╚════════════════════════════════════════════╝');
+        console.log('');
+
+        // Use the raw response directly from n8n (no OpenAI formatting needed)
+        const botResponse = rawResponse;
 
         // Add bot response to history
         state.conversationHistory.push({
@@ -508,8 +664,19 @@ async function handleUserMessage(userMessage) {
         // Display bot response
         sendMessage(botResponse, 'bot');
 
-        // Generate 2 new sample questions based on the conversation
-        await generateAndShowSampleQuestions(userMessage, botResponse);
+        // Show followup questions from n8n response
+        if (followupQuestion01 || followupQuestion02) {
+            const followupQuestions = [followupQuestion01, followupQuestion02].filter(q => q && q.trim() !== '');
+            if (followupQuestions.length > 0) {
+                showSampleQuestions(followupQuestions);
+            } else {
+                // If no followup questions, show default options
+                showDefaultOptions();
+            }
+        } else {
+            // If no followup questions in response, show default options
+            showDefaultOptions();
+        }
 
     } catch (error) {
         console.error('Error in handleUserMessage:', error);
@@ -546,194 +713,9 @@ function showDefaultOptionsOnce() {
     state.defaultOptionsShown = true;
 }
 
-// Format n8n response using OpenAI to make it user-friendly
-async function formatResponseWithOpenAI(rawResponse, userQuestion) {
-    // If no API key, return raw response (formatted with markdown)
-    if (!CONFIG.openaiApiKey || CONFIG.openaiApiKey === 'sk-your-openai-api-key-here' || CONFIG.openaiApiKey.trim() === '') {
-        console.warn('OpenAI API key not set, using raw response');
-        return rawResponse;
-    }
+// OpenAI formatting function removed - using n8n responses directly
 
-    try {
-        const prompt = `You are a friendly assistant for ${CONFIG.restaurantName}, a bakery in NYC. A customer asked: "${userQuestion}".
-
-The information system provided this response:
-"${rawResponse}"
-
-Reformat this response to be conversational, user-friendly, and engaging. Keep all important information but make it sound natural and friendly, as if you're directly talking to the customer.
-
-CRITICAL RULES:
-- Start directly with the answer - NO meta-commentary like "Sure!", "Here's...", "Let me...", etc.
-- NO headings, separators, or introductory phrases
-- Use **bold** for labels (like "Location:", "Hours:", etc.)
-- Use line breaks for readability
-- Keep lists clear and easy to read
-- Be conversational but informative
-- Return ONLY the reformatted response text, nothing else - no explanations, no meta-text`;
-
-        // Use proxy if configured, otherwise try direct (may fail due to CORS)
-        const proxyUrl = CONFIG.openaiProxyUrl || null;
-        const apiUrl = proxyUrl || 'https://api.openai.com/v1/chat/completions';
-        
-        const requestBody = {
-            model: 'gpt-4o-mini',
-            messages: [
-                {
-                    role: 'system',
-                    content: `You are a friendly assistant for ${CONFIG.restaurantName}. Reformulate responses to be conversational, user-friendly, and engaging while keeping all important information. NEVER add meta-commentary, headings, or introductory phrases. Start directly with the answer.`
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            max_tokens: 500,
-            temperature: 0.7
-        };
-
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-
-        // If using proxy, don't add Authorization header (proxy handles it)
-        // If direct, add Authorization header
-        if (!proxyUrl) {
-            headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
-        }
-
-        console.log('Calling OpenAI API for formatting:', apiUrl);
-        console.log('Using proxy:', !!proxyUrl);
-        
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(requestBody)
-        });
-
-        console.log('OpenAI formatting response status:', response.status);
-
-        if (response.ok) {
-            const data = await response.json();
-            let formattedResponse = data.choices[0].message.content.trim();
-            
-            // Clean up any unwanted meta-text that OpenAI might add
-            // Remove lines like "Sure! Here's...", "Let me...", etc.
-            formattedResponse = formattedResponse.replace(/^(Sure!|Here's|Let me|I'll|I can|Here is).*?:\s*/i, '');
-            formattedResponse = formattedResponse.replace(/^---\s*/g, ''); // Remove separator lines
-            formattedResponse = formattedResponse.replace(/^Hey there!.*?\n/gi, ''); // Remove "Hey there!" lines
-            formattedResponse = formattedResponse.replace(/^✨\s*/g, ''); // Remove emoji prefixes
-            formattedResponse = formattedResponse.trim();
-            
-            return formattedResponse;
-        } else {
-            // If OpenAI fails, return raw response
-            const errorText = await response.text();
-            console.error('OpenAI formatting failed, using raw response. Status:', response.status);
-            console.error('Error response:', errorText);
-            if (response.status === 401) {
-                console.error('⚠️ OpenAI API key is invalid or expired. Please check your API key in config.js');
-            } else if (response.status === 0 || errorText.includes('CORS')) {
-                console.error('⚠️ CORS error: Cannot call OpenAI directly from browser. Consider using openaiProxyUrl in config.js');
-            }
-            return rawResponse;
-        }
-    } catch (error) {
-        console.error('Error formatting response:', error);
-        if (error.message && error.message.includes('CORS')) {
-            console.error('⚠️ CORS error: Cannot call OpenAI directly from browser. Consider using openaiProxyUrl in config.js');
-        }
-        // If error, return raw response
-        return rawResponse;
-    }
-}
-
-// Generate sample questions using OpenAI based on conversation
-async function generateAndShowSampleQuestions(userQuestion, botResponse) {
-    // If no API key is set, don't show anything (default options already shown once)
-    if (!CONFIG.openaiApiKey || CONFIG.openaiApiKey === 'sk-your-openai-api-key-here' || CONFIG.openaiApiKey.trim() === '') {
-        console.warn('OpenAI API key not set. Skipping sample question generation.');
-        return;
-    }
-
-    try {
-        const prompt = `You are a helpful assistant for ${CONFIG.restaurantName}, a bakery in NYC. Based on the user's question "${userQuestion}" and your response "${botResponse}", generate exactly 2 relevant follow-up questions that a customer might ask. Return only the 2 questions, one per line, without numbering or bullets.`;
-
-        // Use proxy if configured, otherwise try direct (may fail due to CORS)
-        const proxyUrl = (CONFIG.openaiProxyUrl && CONFIG.openaiProxyUrl.trim() !== '') ? CONFIG.openaiProxyUrl : null;
-        const apiUrl = proxyUrl || 'https://api.openai.com/v1/chat/completions';
-        console.log('Sample questions - Proxy URL check:', proxyUrl);
-        
-        const requestBody = {
-            model: 'gpt-4o-mini',
-            messages: [
-                {
-                    role: 'system',
-                    content: `You are a helpful assistant for ${CONFIG.restaurantName}. Generate exactly 2 relevant follow-up questions based on the conversation. Return only the questions, one per line, without numbering.`
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            max_tokens: 100,
-            temperature: 0.7
-        };
-
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-
-        // If using proxy, don't add Authorization header (proxy handles it)
-        // If direct, add Authorization header
-        if (!proxyUrl) {
-            headers['Authorization'] = `Bearer ${CONFIG.openaiApiKey}`;
-        }
-
-        console.log('Calling OpenAI API for sample questions:', apiUrl);
-        console.log('Using proxy:', !!proxyUrl);
-        
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(requestBody)
-        });
-
-        console.log('OpenAI sample questions response status:', response.status);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('OpenAI sample questions failed. Status:', response.status);
-            console.error('Error response:', errorText);
-            if (response.status === 401) {
-                console.error('⚠️ OpenAI API key is invalid or expired. Please check your API key in config.js');
-            } else if (response.status === 0 || errorText.includes('CORS')) {
-                console.error('⚠️ CORS error: Cannot call OpenAI directly from browser. Consider using openaiProxyUrl in config.js');
-            }
-            throw new Error('OpenAI API error');
-        }
-
-        const data = await response.json();
-        const questionsText = data.choices[0].message.content.trim();
-        const questions = questionsText.split('\n')
-            .map(q => q.replace(/^\d+[\.\)]\s*/, '').trim())
-            .filter(q => q.length > 0)
-            .slice(0, 2);
-
-        if (questions.length > 0) {
-            showSampleQuestions(questions);
-        }
-        // If no questions generated, don't show anything (default options already shown once)
-
-    } catch (error) {
-        console.error('Error generating questions:', error);
-        if (error.message && error.message.includes('CORS')) {
-            console.error('⚠️ CORS error: Cannot call OpenAI directly from browser. Consider using openaiProxyUrl in config.js');
-        }
-        // Don't show default options on error (already shown once)
-    }
-}
-
-// Show sample questions as quick options (only the 2 generated questions, no default options)
+// Show followup questions from n8n response as quick options
 function showSampleQuestions(questions) {
     if (!quickOptions) {
         console.error('Quick options container not found');
@@ -743,7 +725,7 @@ function showSampleQuestions(questions) {
     // Clear existing options
     quickOptions.innerHTML = '';
 
-    // Add only the generated questions (no default options after initial load)
+    // Add only the followup questions from n8n (no default options after initial load)
     questions.forEach(question => {
         const btn = document.createElement('button');
         btn.className = 'option-btn';
